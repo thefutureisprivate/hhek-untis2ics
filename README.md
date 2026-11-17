@@ -33,23 +33,21 @@ exported browser session. Revoking mobile devices in WebUntis revokes this acces
 The service uses WebUntis's internal mobile JSON-RPC endpoints
 (`getUserData2017` and `getTimetable2017`), which may change upstream.
 
-## Build and run with rootless Podman
+## Run with rootless Podman
 
 Requires current Podman configured for rootless containers.
+The published image is `ghcr.io/thefutureisprivate/hhek-untis2ics:latest`.
+
+GHCR packages are private by default. Anonymous pulls require public package
+visibility. For a private package, authenticate with `podman login ghcr.io`
+using a classic token with `read:packages` access. See
+[GHCR authentication and visibility](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 
 ```sh
 git clone https://github.com/thefutureisprivate/hhek-untis2ics.git
 cd hhek-untis2ics
-podman build -t localhost/hhek-untis2ics .
+podman pull ghcr.io/thefutureisprivate/hhek-untis2ics:latest
 ```
-
-The build runs formatting, Clippy with warnings as errors, and tests before
-producing a non-root `scratch` image. The musl binary is built with the official
-Alpine Rust image, pinned by digest. The runtime contains the binary, CA
-certificates, the Europe/Berlin timezone file and license notices; it has no shell
-or package manager. `Cargo.lock` locks registry dependencies and checksums.
-Rebuild with `--pull --no-cache` to refresh CA certificates and timezone data
-from Alpine's maintained packages.
 
 Create a private configuration file:
 
@@ -79,7 +77,7 @@ podman run -d --name hhek-untis2ics \
   --secret=hhek-untis2ics-config,target=/etc/hhek-untis2ics/config.json,uid=65532,gid=65532,mode=0400 \
   -p 127.0.0.1:8080:8080 \
   -p 127.0.0.1:9464:9090 \
-  localhost/hhek-untis2ics
+  ghcr.io/thefutureisprivate/hhek-untis2ics:latest
 
 podman exec hhek-untis2ics /hhek-untis2ics url
 curl --fail http://127.0.0.1:8080/healthz
@@ -98,8 +96,9 @@ The separate feed token grants calendar access without disclosing the mobile key
 [`deploy/hhek-untis2ics.container`](deploy/hhek-untis2ics.container) runs the
 service under a rootless user manager. Use a dedicated unprivileged service
 account with subordinate UID/GID ranges, cgroup v2, current Podman and systemd.
-Build the image and create the Podman secret as that account first. `Pull=never`
-requires the trusted local build and prevents implicit image downloads.
+Pull the published image and create the Podman secret as that account first.
+`Pull=never` uses the cached GHCR image, keeping registry authentication and
+downloads outside the service's resource limits.
 
 The container runs as UID/GID 65532 with the host user excluded from its user
 namespace (`nomap`). It drops all capabilities, enables no-new-privileges, uses
@@ -130,9 +129,17 @@ journalctl --user -u hhek-untis2ics.service
 
 `WantedBy=default.target` starts the generated unit with the user manager;
 Quadlet-generated services are not enabled with `systemctl enable`. For startup
-at boot without login, enable lingering for the service account. Rebuild the
-local image and restart the service to deploy an update. The account can enable
-lingering with `loginctl enable-linger "$USER"`.
+at boot without login, enable lingering for the service account with
+`loginctl enable-linger "$USER"`.
+
+To deploy an updated image:
+
+```sh
+podman pull ghcr.io/thefutureisprivate/hhek-untis2ics:latest
+systemctl --user restart hhek-untis2ics.service
+```
+
+Use an image digest in the Quadlet's `Image=` value to pin a specific build.
 
 Apply container restrictions through the `[Container]` options. Host-level
 `NoNewPrivileges`, `RestrictNamespaces` or filesystem restrictions on the Podman
@@ -199,6 +206,19 @@ the host account protected.
 
 ## Development
 
+Build the image locally:
+
+```sh
+podman build --pull --no-cache -t localhost/hhek-untis2ics .
+```
+
+Use `localhost/hhek-untis2ics` in the run command for local development.
+The build runs formatting, Clippy with warnings as errors, and tests before
+producing a non-root `scratch` image. The musl binary is built with the official
+Alpine Rust image, pinned by digest. The runtime contains the binary, CA
+certificates, the Europe/Berlin timezone file and license notices; it has no shell
+or package manager. `Cargo.lock` locks registry dependencies and checksums.
+
 Native development requires Rust 1.100 or later. There are seven direct runtime
 dependencies: Axum/Tokio for HTTP, Reqwest with Rustls for TLS, Serde/serde_json
 for JSON, Jiff for dates/timezones, and totp-rs for mobile authentication. Optional
@@ -230,6 +250,17 @@ CI runs on pull requests, pushes to `main`, manual dispatch, and every night at
 runs Clippy with warnings as errors, runs the tests, and builds the final
 `scratch` image. Builds use `--pull --no-cache` so nightly runs refresh Alpine
 packages, CA certificates and timezone data. CI needs no WebUntis credentials.
+
+After the build/tests and lockfile verification pass, a separate job publishes
+`ghcr.io/thefutureisprivate/hhek-untis2ics:latest` and `:sha-<full-commit>` on
+pushes to `main`, nightly runs, and manual runs targeting `main`. It rebuilds
+and tests the same commit before publishing, using the repository's
+`GITHUB_TOKEN` with job-scoped `packages: write` permission. Pull requests and
+manual runs on other branches only build, test and verify the lockfile.
+
+Both tags refer to the latest build of that commit; nightly builds can refresh
+the image without changing the commit. Use a digest for an immutable reference.
+The image's source and revision labels link it to the repository and commit.
 
 Dependabot checks the container builder image, GitHub Actions and Rust crates
 daily and opens update pull requests. The builder remains digest-pinned.

@@ -30,6 +30,45 @@ jobs:
           docker build --pull --no-cache --file Containerfile
           --tag hhek-untis2ics:ci .
 
+  publish:
+    name: Publish container
+    needs: [check, lockfile]
+    if: >-
+      github.repository == 'thefutureisprivate/hhek-untis2ics' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write # Publish the repository's image to GHCR.
+    env:
+      GHCR_IMAGE: ghcr.io/thefutureisprivate/hhek-untis2ics
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build tested image for publication
+        run: >-
+          docker build --pull --no-cache --file Containerfile
+          --label "org.opencontainers.image.revision=$GITHUB_SHA"
+          --tag "$GHCR_IMAGE:sha-$GITHUB_SHA" --tag "$GHCR_IMAGE:latest" .
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          printf '%s' "$GHCR_TOKEN" |
+          docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Push image tags
+        run: |
+          docker push "$GHCR_IMAGE:sha-$GITHUB_SHA"
+          docker push "$GHCR_IMAGE:latest"
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io
+
   lockfile:
     name: Verify workflow lockfile
     runs-on: ubuntu-slim
