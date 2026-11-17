@@ -1,0 +1,44 @@
+[Unit]
+Description=Heinrich-Hertz-BK calendar feed
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Container]
+Image=localhost/hhek-untis2ics:latest
+Pull=never
+ContainerName=hhek-untis2ics
+User=65532
+Group=65532
+UserNS=nomap
+DropCapability=all
+NoNewPrivileges=true
+ReadOnly=true
+ReadOnlyTmpfs=false
+ImageVolume=ignore
+Network=pasta:--no-map-gw
+PublishPort=127.0.0.1:8080:8080
+PublishPort=127.0.0.1:9464:9090
+Secret=hhek-untis2ics-config,target=/etc/hhek-untis2ics/config.json,uid=65532,gid=65532,mode=0400
+PidsLimit=64
+Memory=128m
+Ulimit=core=0:0
+Ulimit=nofile=1024:1024
+# Use native Podman options for settings without keys in stable Quadlet.
+PodmanArgs=--cpus=1 --ipc=none --cgroupns=private --umask=0077
+StopSignal=SIGTERM
+StopTimeout=10
+LogDriver=journald
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+TimeoutStopSec=20
+MemoryMax=192M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=96
+UMask=0077
+
+[Install]
+WantedBy=default.target

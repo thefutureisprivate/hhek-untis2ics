@@ -1,0 +1,9 @@
+*
+!Cargo.toml
+!Cargo.lock
+!src
+!src/**
+!Containerfile
+!LICENSE
+!licenses
+!licenses/**
