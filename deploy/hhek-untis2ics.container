@@ -4,7 +4,7 @@ StartLimitIntervalSec=300
 StartLimitBurst=5
 
 [Container]
-Image=localhost/hhek-untis2ics:latest
+Image=ghcr.io/thefutureisprivate/hhek-untis2ics:latest
 Pull=never
 ContainerName=hhek-untis2ics
 User=65532
