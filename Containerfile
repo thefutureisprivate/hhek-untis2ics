@@ -1,4 +1,4 @@
-FROM docker.io/library/rust:1-alpine@sha256:2cccd8b212b37dad15a555589c1b6787da4ab913fe24d8a9b2d99d3498869409 AS verify
+FROM docker.io/library/rust:1-alpine@sha256:8d0e82abfdf9a38071e07cabc5afba4ddbe077631a80e4e742a760c38beadc33 AS verify
 WORKDIR /app
 RUN apk upgrade --no-cache \
     && apk add --no-cache build-base ca-certificates tzdata \
